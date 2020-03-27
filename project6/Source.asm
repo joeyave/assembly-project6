@@ -13,7 +13,7 @@ includelib kernel32.lib
 ;   number - число.
 ; "Возвращает":
 ;   ebx - количество единичек в байте.
-count_ones macro number
+count_ones macro number, array_type
     push eax
     push ecx
 
@@ -26,7 +26,11 @@ count_ones macro number
     
     ; Цикл для подсчета количества единиц в слове. 
     ; Проверяю все биты, кроме старшего.
-    mov ecx, 15
+    if array_type eq 1
+        mov ecx, 7
+    elseif array_type eq 2
+        mov ecx, 15
+    endif
     count_ones_loop:
         ; Сдвигаю биты числа на один вправо. 
         ; В carry flag будет записан последний сдвинутый бит.
@@ -40,7 +44,7 @@ count_ones macro number
         continue:
     loop count_ones_loop
 
-    ; Сдвигаю 16-й раз для того,
+    ; Сдвигаю последний раз для того,
     ; чтобы вернуть число в исходное состояние.
     ror ax, 1
 
@@ -52,7 +56,7 @@ endm
 ; Принимает:
 ;   number - число.
 ;   ones_amount - количество единичек.
-set_control_bit macro number, ones_amount
+set_control_bit macro number, array_type, ones_amount
     pushad
     mov eax, number
 
@@ -69,21 +73,29 @@ set_control_bit macro number, ones_amount
 
     ; Количество единиц нечетное.
     ; Устанавливаю первый бит равным единице.
-    or ax, 1000000000000000b
+    if array_type eq 1
+        or al, 10000000b
+    elseif array_type eq 2
+        or ax, 1000000000000000b
+    endif
     mov number, ax
     jmp exit
 
     is_even:
     ; Количество единиц четное.
     ; Устанавливаю первый бит равным нулю.
-    and ax, 0111111111111111b
+    if array_type eq 1
+        and al, 01111111b
+    elseif array_type eq 2
+        and ax, 0111111111111111b
+    endif
     mov number, ax
     exit:
     popad
 endm
 
 ; Выводит массив в консоль.
-print_array macro data
+print_array macro array
     local buffer, print_loop
 
     .data
@@ -91,11 +103,16 @@ print_array macro data
 
     .code
     pushad
-    mov esi, offset data
-    mov ecx, lengthof data
+    mov esi, offset array
+    mov ecx, lengthof array
 
     print_loop:
         mov eax, [esi]
+
+        ; Если массив байтов.
+        if type array eq 1
+            cbw
+        endif
         
         pushad
         mov esi, offset buffer
@@ -110,14 +127,20 @@ print_array macro data
         invoke StdOut, offset buffer
         popad
 
-        add esi, 2
+        if type array eq 1
+            add esi, 1
+        elseif type array eq 2
+            add esi, 2
+        endif
     loop print_loop
     popad
 endm
 
 
 .data
-my_secret_data dw 14, 15, 23, 12, 142, 63, 21
+; Программа поддерживает либо байты, либо слова.
+;my_secret_data dw 14, 15, 23, 12, 142, 63, 21
+my_secret_data db 14, 15, 23, 12, 100, 63, 21
 
 msg_before db 10, 13, "Array before:", 10, 13, 0
 msg_after db 10, 13, "Array after:", 10, 13, 0
@@ -135,9 +158,14 @@ main proc
 
     ; Цикл, который проходит по каждому элементу массива.
     array_loop:
-        count_ones [esi]
-        set_control_bit [esi], ebx
-        add esi, 2
+        count_ones [esi], type my_secret_data
+        set_control_bit [esi], type my_secret_data, ebx
+
+        if type my_secret_data eq 1
+            add esi, 1
+        elseif type my_secret_data eq 2
+            add esi, 2
+        endif
     loop array_loop
 
     pushad
